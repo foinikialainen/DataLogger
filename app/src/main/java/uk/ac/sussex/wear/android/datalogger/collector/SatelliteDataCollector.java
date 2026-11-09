@@ -23,18 +23,22 @@
 package uk.ac.sussex.wear.android.datalogger.collector;
 
 import android.content.Context;
+import android.location.GnssStatus;
 import android.location.GpsSatellite;
 import android.location.GpsStatus;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 
 import java.io.File;
 import java.util.Date;
 
+import androidx.core.content.ContextCompat;
+
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
 
-// child class for collecting satellite data (GPS)
+// child class for collecting satellite data (GNSS)
 
 public class SatelliteDataCollector extends AbstractDataCollector {
 
@@ -45,12 +49,21 @@ public class SatelliteDataCollector extends AbstractDataCollector {
     // The location manager reference
     private LocationManager mLocationManager = null;
 
-    // Listener class for monitoring changes in gps status
+    private Context mContext = null;
+
+    // Listener for monitoring changes in GNSS status (API 24+)
+    private GnssStatusCallback mGnssStatusCallback = null;
+
+    // Listener for monitoring changes in gps status (legacy, API < 24)
     private GpsStatusListener mGpsStatusListener = null;
+
+    // Latest GNSS status received from the callback
+    private volatile GnssStatus mLastGnssStatus = null;
 
 
     public SatelliteDataCollector(Context context, String sessionName, String sensorName, long nanosOffset, int logFileMaxSize){
 
+        mContext = context;
         mSensorName = sensorName;
         String path = sessionName + File.separator + mSensorName + "_" + sessionName;
 
@@ -61,10 +74,59 @@ public class SatelliteDataCollector extends AbstractDataCollector {
         // Offset to match timestamps both in master and slaves devices
         mNanosOffset = nanosOffset;
 
-        mGpsStatusListener = new GpsStatusListener();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            mGnssStatusCallback = new GnssStatusCallback();
+        } else {
+            mGpsStatusListener = new GpsStatusListener();
+        }
 
     }
 
+    private String buildHeaderMessage(){
+        // System nanoseconds since boot, including time spent in sleep.
+        long nanoTime = SystemClock.elapsedRealtimeNanos() + mNanosOffset;
+
+        // System local time in millis
+        long currentMillis = (new Date()).getTime();
+
+        return String.format("%s", currentMillis) + ";"
+                + String.format("%s", nanoTime) + ";"
+                + String.format("%s", mNanosOffset);
+    }
+
+    // Logs the satellites of the latest GNSS status (API 24+)
+    private void logGnssStatus(GnssStatus gnssStatus){
+        if (gnssStatus == null) return;
+
+        int satCounter = gnssStatus.getSatelliteCount();
+
+        String message = buildHeaderMessage();
+
+        for (int i = 0; i < satCounter; i++) {
+            // Satellite identifier (SVID). For GPS this matches the PRN.
+            int svid = gnssStatus.getSvid(i);
+
+            // Carrier-to-noise density in dB-Hz (equivalent of the old SNR).
+            float cn0 = gnssStatus.getCn0DbHz(i);
+
+            // Azimuth of the satellite in degrees.
+            float azimuth = gnssStatus.getAzimuthDegrees(i);
+
+            // Elevation of the satellite in degrees.
+            float elevation = gnssStatus.getElevationDegrees(i);
+
+            message += ";" + svid
+                    + ";" + cn0
+                    + ";" + azimuth
+                    + ";" + elevation;
+        }
+        message += ";" + Integer.toString(satCounter);
+
+        logger.log(message);
+        logger.log(System.lineSeparator());
+    }
+
+    // Legacy logging for API < 24 using the deprecated GpsStatus API
     private Iterable<GpsSatellite> getGpsSatellites(){
         synchronized (this) {
             GpsStatus status = mLocationManager.getGpsStatus(null);
@@ -73,17 +135,11 @@ public class SatelliteDataCollector extends AbstractDataCollector {
     }
 
     private void logSatelliteInfo(Iterable<GpsSatellite> gpsSatellites){
+        if (gpsSatellites == null) return;
+
         int satCounter = 0;
 
-        // System nanoseconds since boot, including time spent in sleep.
-        long nanoTime = SystemClock.elapsedRealtimeNanos() + mNanosOffset;
-
-        // System local time in millis
-        long currentMillis = (new Date()).getTime();
-
-        String message = String.format("%s", currentMillis) + ";"
-                + String.format("%s", nanoTime) + ";"
-                + String.format("%s", mNanosOffset);
+        String message = buildHeaderMessage();
 
         for(GpsSatellite satellite: gpsSatellites){
             satCounter++;
@@ -111,6 +167,32 @@ public class SatelliteDataCollector extends AbstractDataCollector {
         logger.log(System.lineSeparator());
     }
 
+    // Callback for GNSS status changes (replaces the deprecated GpsStatus.Listener, API 24+)
+    private class GnssStatusCallback extends GnssStatus.Callback {
+
+        @Override
+        public void onStarted() {
+            Log.i(TAG, "::onStarted GNSS started");
+        }
+
+        @Override
+        public void onStopped() {
+            Log.i(TAG, "::onStopped GNSS stopped");
+        }
+
+        @Override
+        public void onFirstFix(int ttffMillis) {
+            logGnssStatus(mLastGnssStatus);
+        }
+
+        @Override
+        public void onSatelliteStatusChanged(GnssStatus status) {
+            mLastGnssStatus = status;
+            logGnssStatus(status);
+        }
+    }
+
+    // Legacy listener for GPS status changes (API < 24 only)
     private class GpsStatusListener implements GpsStatus.Listener {
 
         @Override
@@ -125,7 +207,15 @@ public class SatelliteDataCollector extends AbstractDataCollector {
     public void start() {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
         logger.start();
-        mLocationManager.addGpsStatusListener(mGpsStatusListener);
+        if (mGnssStatusCallback != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                mLocationManager.registerGnssStatusCallback(ContextCompat.getMainExecutor(mContext), mGnssStatusCallback);
+            } else {
+                mLocationManager.registerGnssStatusCallback(mGnssStatusCallback);
+            }
+        } else if (mGpsStatusListener != null) {
+            mLocationManager.addGpsStatusListener(mGpsStatusListener);
+        }
     }
 
     @Override
@@ -133,7 +223,12 @@ public class SatelliteDataCollector extends AbstractDataCollector {
         Log.i(TAG,"stop:: Stopping listener for sensor " + getSensorName());
         logger.stop();
         if (mLocationManager != null) {
-            mLocationManager.removeGpsStatusListener(mGpsStatusListener);
+            if (mGnssStatusCallback != null) {
+                mLocationManager.unregisterGnssStatusCallback(mGnssStatusCallback);
+            }
+            if (mGpsStatusListener != null) {
+                mLocationManager.removeGpsStatusListener(mGpsStatusListener);
+            }
         }
     }
 

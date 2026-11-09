@@ -29,7 +29,7 @@ import android.content.Intent;
 import android.media.RingtoneManager;
 import android.os.Handler;
 import android.os.SystemClock;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.util.Log;
 
 import java.io.File;
@@ -39,6 +39,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
+
+import uk.ac.sussex.wear.android.datalogger.Constants;
 
 /**
  * Base class to subclass when creating upload tasks. It contains the logic common to all the tasks,
@@ -140,7 +142,7 @@ public abstract class UploadTask implements Runnable {
      */
     protected void init(UploadService service, Intent intent) throws IOException {
         this.notificationManager = (NotificationManager) service.getSystemService(Context.NOTIFICATION_SERVICE);
-        this.notification = new NotificationCompat.Builder(service);
+        this.notification = new NotificationCompat.Builder(service, Constants.UPLOAD_NOTIFICATION_CHANNEL_ID);
         this.service = service;
         this.mainThreadHandler = new Handler(service.getMainLooper());
         this.params = intent.getParcelableExtra(UploadService.PARAM_TASK_PARAMETERS);

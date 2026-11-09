@@ -25,9 +25,12 @@ package uk.ac.sussex.wear.android.datalogger.collector;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
-import android.support.v4.app.ActivityCompat;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import android.telephony.CellIdentityCdma;
 import android.telephony.CellIdentityGsm;
 import android.telephony.CellIdentityLte;
@@ -44,6 +47,7 @@ import android.telephony.CellSignalStrengthLte;
 import android.telephony.CellSignalStrengthWcdma;
 import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -66,8 +70,11 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
     // The telephony manager reference
     private TelephonyManager mTelephonyManager = null;
 
-    // Listener class for monitoring changes in telephony states
+    // Listener class for monitoring changes in telephony states (legacy, API < 31)
     private CellInfoListener mCellInfoListener = null;
+
+    // Callback for monitoring changes in telephony states (API 31+, replaces TelephonyManager.listen)
+    private TelephonyCallback mTelephonyCallback = null;
 
     // Timer to manage specific sampling rates
     private Handler mTimerHandler = null;
@@ -101,12 +108,12 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
          * specific intervals.
          */
         if (mSamplingPeriodUs > 0) {
-            mTimerHandler = new Handler();
+            mTimerHandler = new Handler(Looper.getMainLooper());
             mTimerRunnable = new Runnable() {
                 @Override
                 public void run() {
                     // Returns all observed cell information from all radios on the device including the primary and neighboring cells.
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    if (!hasCellInfoPermission()) {
                         // TODO: Consider calling
                         //    ActivityCompat#requestPermissions
                         // here to request the missing permissions, and then overriding
@@ -122,9 +129,23 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
                 }
             };
         } else {
-            mCellInfoListener = new CellInfoListener();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                mTelephonyCallback = new ModernTelephonyCallback();
+            } else {
+                mCellInfoListener = new CellInfoListener();
+            }
         }
 
+    }
+
+    // On Android 10+ getAllCellInfo() requires ACCESS_FINE_LOCATION
+    private boolean hasCellInfoPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return ActivityCompat.checkSelfPermission(mcontext, Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return ActivityCompat.checkSelfPermission(mcontext, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void logCellInfo(List<CellInfo> cellInfo) {
@@ -143,7 +164,10 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
         logger.start();
 
-        if (mCellInfoListener != null) {
+        if (mTelephonyCallback != null) {
+            mTelephonyManager.registerTelephonyCallback(
+                    ContextCompat.getMainExecutor(mcontext), mTelephonyCallback);
+        } else if (mCellInfoListener != null) {
             mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_CELL_INFO
                     | PhoneStateListener.LISTEN_SIGNAL_STRENGTHS
                     | PhoneStateListener.LISTEN_CELL_LOCATION);
@@ -156,7 +180,9 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
     public void stop() {
         Log.i(TAG, "stop:: Stopping listener for sensor " + getSensorName());
 
-        if (mCellInfoListener != null) {
+        if (mTelephonyCallback != null) {
+            mTelephonyManager.unregisterTelephonyCallback(mTelephonyCallback);
+        } else if (mCellInfoListener != null) {
             mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_NONE);
         } else {
             mTimerHandler.removeCallbacks(mTimerRunnable);
@@ -175,6 +201,34 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
     @Override
     public void updateNanosOffset(long nanosOffset) {
         mNanosOffset = nanosOffset;
+    }
+
+    /**
+     * Callback used on API 31+ to monitor cell info, signal strengths and cell location
+     * (replaces the deprecated TelephonyManager.listen / PhoneStateListener).
+     */
+    private class ModernTelephonyCallback extends TelephonyCallback
+            implements TelephonyCallback.CellInfoListener,
+            TelephonyCallback.SignalStrengthsListener,
+            TelephonyCallback.CellLocationListener {
+
+        @Override
+        public void onCellInfoChanged(List<CellInfo> cellInfo) {
+            if (cellInfo == null) return;
+            logCellInfo(cellInfo);
+        }
+
+        @Override
+        public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+            if (!hasCellInfoPermission()) return;
+            logCellInfo(mTelephonyManager.getAllCellInfo());
+        }
+
+        @Override
+        public void onCellLocationChanged(CellLocation location) {
+            if (!hasCellInfoPermission()) return;
+            logCellInfo(mTelephonyManager.getAllCellInfo());
+        }
     }
 
     /**
@@ -197,7 +251,7 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
 
             // getAllCellInfo() returns all observed cell information from all radios on the device including the primary and neighboring cells
             // This is preferred over using getCellLocation although for older devices this may return null in which case getCellLocation should be called.
-            if (ActivityCompat.checkSelfPermission(mcontext, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (!hasCellInfoPermission()) {
                 // TODO: Consider calling
                 //    ActivityCompat#requestPermissions
                 // here to request the missing permissions, and then overriding
@@ -216,7 +270,7 @@ public class CellsInfoDataCollector extends AbstractDataCollector {
 
             // getAllCellInfo() returns all observed cell information from all radios on the device including the primary and neighboring cells
             // This is preferred over using getCellLocation although for older devices this may return null in which case getCellLocation should be called.
-            if (ActivityCompat.checkSelfPermission(mcontext, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (!hasCellInfoPermission()) {
                 // TODO: Consider calling
                 //    ActivityCompat#requestPermissions
                 // here to request the missing permissions, and then overriding

@@ -24,6 +24,7 @@ package uk.ac.sussex.wear.android.datalogger.collector;
 
 import android.content.Context;
 import android.os.Handler;
+import android.os.Looper;
 import java.io.File;
 
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
@@ -47,7 +48,7 @@ public class DummyDataCollector extends AbstractDataCollector {
         String path = sessionName + File.separator + mSensorName + "_" + sessionName;
         logger = new CustomLogger(context, path, sessionName, mSensorName, "txt", false, nanosOffset, logFileMaxSize);
         //Log.e(TAG, "Error creating " + "DummyDataCollector" + " test_aftertxt");
-        mTimerHandler = new Handler();
+        mTimerHandler = new Handler(Looper.getMainLooper());
         mTimerRunnable = new Runnable() {
             @Override
             public void run() {

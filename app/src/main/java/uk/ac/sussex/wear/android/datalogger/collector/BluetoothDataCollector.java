@@ -23,21 +23,22 @@
 
 package uk.ac.sussex.wear.android.datalogger.collector;
 
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothLeScanner;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
-import uk.ac.sussex.wear.android.datalogger.R;
 import uk.ac.sussex.wear.android.datalogger.collector.BTHelper.DeviceAdapter;
 import uk.ac.sussex.wear.android.datalogger.collector.BTHelper.ScannedDevice;
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
-import android.widget.Toast;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ import java.util.List;
 * Created by wurmc
 * */
 
-public class BluetoothDataCollector extends AbstractDataCollector implements BluetoothAdapter.LeScanCallback{
+public class BluetoothDataCollector extends AbstractDataCollector {
 
     private static final String TAG = BluetoothDataCollector.class.getSimpleName();
 
@@ -72,8 +73,9 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
     private BluetoothAdapter mBTAdapter = null;
     private boolean mIsScanning;
     private DeviceAdapter mDeviceAdapter;
+    private BluetoothLeScanner mBluetoothLeScanner = null;
+    private ScanCallback mScanCallback = null;
 
-    @SuppressLint("ServiceCast")
     public BluetoothDataCollector(Context context, String sessionName, String sensorName, int samplingPeriodUs, long nanosOffset, int logFileMaxSize) {
 
         mSensorName = sensorName;
@@ -88,7 +90,7 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
         // call init
         init();
         if (mSamplingPeriodUs > 0) {
-            mTimerHandler = new Handler();
+            mTimerHandler = new Handler(Looper.getMainLooper());
             mTimerRunnable = new Runnable() {
                 // still problems here !!! run() seems to not work properly. Log doesn't get called
                 // no BT txt files are written
@@ -107,14 +109,25 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
 
     private void init(){
         // initialise mBTAdapter
-        mBTAdapter = BluetoothAdapter.getDefaultAdapter();
+        BluetoothManager bluetoothManager = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+        mBTAdapter = (bluetoothManager == null) ? null : bluetoothManager.getAdapter();
         if (mBTAdapter == null) {
-            Toast.makeText(this, R.string.bt_not_supported, Toast.LENGTH_SHORT).show();
-            finish();
+            Log.e(TAG, "Bluetooth is not supported on this device");
             return;
         }
 
         mDeviceAdapter = new DeviceAdapter(new ArrayList<ScannedDevice>());
+
+        // ScanCallback replaces the deprecated BluetoothAdapter.LeScanCallback (API 21+)
+        mScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                if (result.getDevice() != null) {
+                    byte[] scanRecord = (result.getScanRecord() == null) ? null : result.getScanRecord().getBytes();
+                    mDeviceAdapter.updateDevice(result.getDevice(), result.getRssi(), scanRecord);
+                }
+            }
+        };
     }
 
     private void logBluetoothInfo(List<ScannedDevice> scanList){
@@ -160,11 +173,16 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
 
         // if query from iBeaconDetector
         if ((mBTAdapter != null) && (!mIsScanning)) {
-            mBTAdapter.startLeScan(this);
-            mIsScanning = true;
+            mBluetoothLeScanner = mBTAdapter.getBluetoothLeScanner();
+            if (mBluetoothLeScanner != null) {
+                mBluetoothLeScanner.startScan(mScanCallback);
+                mIsScanning = true;
+            }
         }
 
-        mTimerHandler.postDelayed(mTimerRunnable, 0);
+        if (mTimerHandler != null && mTimerRunnable != null) {
+            mTimerHandler.postDelayed(mTimerRunnable, 0);
+        }
 
         logger.start();
     }
@@ -173,12 +191,14 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
     public void stop() {
         Log.i(TAG,"stop:: Stopping listener for sensor " + getSensorName());
 
-        if (mBTAdapter != null) {
-            mBTAdapter.stopLeScan(this);
+        if (mBluetoothLeScanner != null && mIsScanning) {
+            mBluetoothLeScanner.stopScan(mScanCallback);
         }
         mIsScanning = false;
 
-        mTimerHandler.removeCallbacks(mTimerRunnable);
+        if (mTimerHandler != null && mTimerRunnable != null) {
+            mTimerHandler.removeCallbacks(mTimerRunnable);
+        }
 
         logger.stop();
     }
@@ -195,13 +215,4 @@ public class BluetoothDataCollector extends AbstractDataCollector implements Blu
         mNanosOffset = nanosOffset;
     }
 
-    @Override
-    public void onLeScan(final BluetoothDevice newDevice, final int newRssi, final byte[] newScanRecord) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String summary = mDeviceAdapter.updateDevice(newDevice, newRssi, newScanRecord);
-            }
-        });
-    }
 }

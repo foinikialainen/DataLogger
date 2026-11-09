@@ -24,6 +24,7 @@
 package uk.ac.sussex.wear.android.datalogger.bt;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
@@ -81,7 +82,8 @@ public class BluetoothConnectionHelper {
 
     public BluetoothConnectionHelper(Context context, Handler handler, boolean isServer) {
         mContext = context;
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = (bluetoothManager == null) ? null : bluetoothManager.getAdapter();
         mHandler = handler;
         mIsServer = isServer;
         mStates = new int[]{STATE_NONE, STATE_NONE, STATE_NONE};

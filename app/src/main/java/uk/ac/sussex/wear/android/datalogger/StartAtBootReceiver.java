@@ -27,14 +27,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import androidx.core.content.ContextCompat;
+
+import uk.ac.sussex.wear.android.datalogger.data.CommandBTS;
+
 public class StartAtBootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
 
-        if (intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
-            Intent myStarterIntent = new Intent(context, DisplayActivity.class);
-            myStarterIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(myStarterIntent);
+        if (intent.getAction() != null && intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
+            // Since Android 10 activities cannot be started from the background, so the
+            // data logger foreground service is started directly instead of DisplayActivity
+            ContextCompat.startForegroundService(context, new Intent(context, DataLoggerService.class)
+                    .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTS().getMessage()));
         }
     }
 }

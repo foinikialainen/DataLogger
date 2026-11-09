@@ -22,31 +22,40 @@
 
 package uk.ac.sussex.wear.android.datalogger;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
 import android.location.LocationManager;
 import android.net.wifi.WifiManager;
-import android.os.Environment;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.support.annotation.Nullable;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.view.WindowManager;
+
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -134,7 +143,7 @@ public class DataLoggerService extends Service {
     };
 
 
-    private final Handler mHandler = new Handler(new Handler.Callback() {
+    private final Handler mHandler = new Handler(Looper.getMainLooper(), new Handler.Callback() {
         @Override
         public boolean handleMessage(Message msg) {
             boolean ret = true;
@@ -185,7 +194,7 @@ public class DataLoggerService extends Service {
                         );
                         // vibration for 800 milliseconds if data collection is on
                         if (SharedPreferencesHelper.getDataCollectionState(DataLoggerService.this)) {
-                            Handler handler = new Handler();
+                            Handler handler = new Handler(Looper.getMainLooper());
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
@@ -194,7 +203,14 @@ public class DataLoggerService extends Service {
                                     boolean isConnected = ((value & bitmasks[indexSocketLost]) == bitmasks[indexSocketLost]);
                                     if (!isConnected)
                                         // vibration for 800 milliseconds
-                                        ((Vibrator) getSystemService(VIBRATOR_SERVICE)).vibrate(800);
+                                        Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                                        if (vibrator != null) {
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                vibrator.vibrate(VibrationEffect.createOneShot(800, VibrationEffect.DEFAULT_AMPLITUDE));
+                                            } else {
+                                                vibrator.vibrate(800);
+                                            }
+                                        }
                                 }
                             }, 7000);
                         }
@@ -304,15 +320,18 @@ public class DataLoggerService extends Service {
 
         mMasterAddress = "";
 
-        mNotification = new NotificationCompat.Builder(this)
+        createNotificationChannel();
+
+        mNotification = new NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getResources().getString(R.string.notification_content_title))
                 .setTicker(getResources().getString(R.string.notification_ticker))
                 .setContentText(getResources().getString(R.string.notification_waiting_content_text))
                 .setSmallIcon(R.drawable.ic_not_128)
-                .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT))
+                .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                 .setOngoing(true).build();
 
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = (bluetoothManager == null) ? null : bluetoothManager.getAdapter();
 
         if (mBluetoothAdapter == null) { // Device does not support Bluetooth
             updateBluetoothState(Constants.BLUETOOTH_STATE_NOT_SUPPORTED);
@@ -340,7 +359,16 @@ public class DataLoggerService extends Service {
         }
 
         Log.d(TAG, "Calling startForeground");
-        startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int foregroundServiceType = getForegroundServiceType();
+            if (foregroundServiceType != 0) {
+                startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification, foregroundServiceType);
+            } else {
+                startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
+            }
+        } else {
+            startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
+        }
 
         //Return "sticky" for services that are explicitly started and stopped as needed by the app
         return START_STICKY;
@@ -379,10 +407,55 @@ public class DataLoggerService extends Service {
 
 
     /**
+     * Creates the notification channel used by the foreground service (required on API 26+)
+     */
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(Constants.NOTIFICATION_CHANNEL_ID,
+                    getResources().getString(R.string.notification_channel_name),
+                    NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription(getResources().getString(R.string.notification_channel_description));
+            NotificationManager notificationManager =
+                    (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    /**
+     * Computes the foreground service type bitmask from the permissions granted at runtime
+     * (required on API 29+ when the manifest declares foregroundServiceType)
+     */
+    private int getForegroundServiceType() {
+        int type = 0;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+            type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                    == PackageManager.PERMISSION_GRANTED) {
+                type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
+            }
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH)
+                == PackageManager.PERMISSION_GRANTED) {
+            type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
+        }
+        return type;
+    }
+
+    /**
      * Checks if external storage is available for read and write
      */
     public boolean isExternalStorageWritable() {
-        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
+        // Logs are written to the app-specific external files directory, which does not
+        // require any storage permission and is always available when storage is mounted
+        return getExternalFilesDir(null) != null;
     }
 
     public boolean areDeviceSettingsCorrect() {
@@ -414,7 +487,11 @@ public class DataLoggerService extends Service {
                                     }
                                 });
                 AlertDialog alert = alertDialogBuilder.create();
-                alert.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    alert.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+                } else {
+                    alert.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+                }
                 alert.show();
                 isStatusCorrect = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
             }
@@ -423,7 +500,9 @@ public class DataLoggerService extends Service {
         // If there is a data collector related to the WiFi, check WiFi status
         if (SharedPreferencesHelper.isEnabledWiFi(this)) {
             WifiManager manager = (WifiManager) this.getSystemService(Context.WIFI_SERVICE);
-            if (!manager.isWifiEnabled()) {
+            // setWifiEnabled() is deprecated in API 29 and has no effect for third-party apps
+            // on Android 10+, so it is only called on older versions
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !manager.isWifiEnabled()) {
                 manager.setWifiEnabled(true);
             }
         }
@@ -505,15 +584,15 @@ public class DataLoggerService extends Service {
             //Pending intent for flagging a special event during the recording
             PendingIntent flagEventIntent = PendingIntent.getActivity(this,
                     1, new Intent(this, FlagEventActivity.class),
-                    PendingIntent.FLAG_CANCEL_CURRENT);
+                    PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
             // Service notification is updated to show that the service is collecting data
-            mNotification = new NotificationCompat.Builder(this)
+            mNotification = new NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(getResources().getString(R.string.notification_content_title))
                     .setTicker(getResources().getString(R.string.notification_ticker))
                     .setContentText(getResources().getString(R.string.notification_collecting_content_text))
                     .setSmallIcon(R.drawable.ic_rec_128)
-                    .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT))
+                    .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                     .addAction(R.drawable.ic_record_voice_over_white_18dp, this.getResources().getString(R.string.flag_event), flagEventIntent)
                     .setOngoing(true)
                     .build();
@@ -527,12 +606,12 @@ public class DataLoggerService extends Service {
         } else {
 
             // Service notification is updated to show that the service is collecting data
-            mNotification = new NotificationCompat.Builder(this)
+            mNotification = new NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(getResources().getString(R.string.notification_content_title))
                     .setTicker(getResources().getString(R.string.notification_ticker))
                     .setContentText(getResources().getString(R.string.notification_collecting_content_text))
                     .setSmallIcon(R.drawable.ic_rec_128)
-                    .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT))
+                    .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                     .setOngoing(true).build();
         }
 
@@ -581,12 +660,12 @@ public class DataLoggerService extends Service {
                 (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
         // Service notification is updated to show that the service is NOT collecting data
-        mNotification = new NotificationCompat.Builder(this)
+        mNotification = new NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getResources().getString(R.string.notification_content_title))
                 .setTicker(getResources().getString(R.string.notification_ticker))
                 .setContentText(getResources().getString(R.string.notification_waiting_content_text))
                 .setSmallIcon(R.drawable.ic_not_128)
-                .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT))
+                .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, DisplayActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                 .setOngoing(true).build();
         notificationManager.notify(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
 
@@ -926,7 +1005,11 @@ public class DataLoggerService extends Service {
         super.onDestroy();
         stopDataCollection();
         unregisterReceiver(mBluetoothStateReceiver);
-        stopForeground(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
 
         if (wakeLock != null && wakeLock.isHeld())
             wakeLock.release();

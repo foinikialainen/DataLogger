@@ -28,6 +28,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.util.Log;
 
+import androidx.core.content.ContextCompat;
+
 /**
  * Broadcast receiver to subclass to create a receiver for {@link UploadService} events.
  *
@@ -91,7 +93,8 @@ public class UploadServiceBroadcastReceiver extends BroadcastReceiver
     public void register(final Context context) {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(UploadService.getActionBroadcast());
-        context.registerReceiver(this, intentFilter);
+        // On API 33+ non-system broadcasts must be registered with an exported flag
+        ContextCompat.registerReceiver(context, this, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     /**

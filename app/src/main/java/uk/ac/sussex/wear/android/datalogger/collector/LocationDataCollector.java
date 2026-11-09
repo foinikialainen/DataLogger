@@ -26,11 +26,15 @@ import android.content.Context;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.location.LocationRequest;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
 import java.io.File;
 import java.util.Date;
+
+import androidx.core.content.ContextCompat;
 
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
 
@@ -44,9 +48,12 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
 
     private LocationManager mLocationManager = null;
 
+    private Context mContext = null;
+
 
     public LocationDataCollector(Context context, String sessionName, String sensorName, long nanosOffset, int logFileMaxSize){
 
+        mContext = context;
         mSensorName = sensorName;
         String path = sessionName + File.separator + mSensorName + "_" + sessionName;
 
@@ -118,7 +125,26 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
     @Override
     public void start() {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
-        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // API 30+: requestLocationUpdates(String, long, float, LocationListener) is deprecated,
+            // use the LocationRequest-based variant instead
+            LocationRequest locationRequest;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                locationRequest = new LocationRequest.Builder(500, 500)
+                        .setMinUpdateDistanceMeters(0)
+                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                        .build();
+            } else {
+                locationRequest = LocationRequest.create()
+                        .setInterval(500)
+                        .setFastestInterval(500)
+                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            }
+            mLocationManager.requestLocationUpdates(locationRequest,
+                    ContextCompat.getMainExecutor(mContext), this);
+        } else {
+            mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
+        }
         logger.start();
     }
 

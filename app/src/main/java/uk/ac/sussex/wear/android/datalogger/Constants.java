@@ -35,6 +35,10 @@ public final class Constants {
     public static final String PACKAGE_NAME = "uk.ac.sussex.wear.android.datalogger";
     public static final int ADMIN_CODE = 4004;
 
+    // Notification channel used for the foreground service and upload notifications (API 26+)
+    public static final String NOTIFICATION_CHANNEL_ID = PACKAGE_NAME + ".NOTIFICATION_CHANNEL";
+    public static final String UPLOAD_NOTIFICATION_CHANNEL_ID = PACKAGE_NAME + ".UPLOAD_NOTIFICATION_CHANNEL";
+
     /**
      * Defines a shared preference that stores the data collection object. It's empty when
      * the data collection is not running. It is stored persistently in case the device is rebooted.

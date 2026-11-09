@@ -29,6 +29,7 @@ import android.content.IntentFilter;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -76,7 +77,7 @@ public class WiFiDataCollector extends AbstractDataCollector {
         // Offset to match timestamps both in master and slaves devices
         mNanosOffset = nanosOffset;
         if (mSamplingPeriodUs > 0) {
-            mTimerHandler = new Handler();
+            mTimerHandler = new Handler(Looper.getMainLooper());
             mTimerRunnable = new Runnable() {
                 @Override
                 public void run() {

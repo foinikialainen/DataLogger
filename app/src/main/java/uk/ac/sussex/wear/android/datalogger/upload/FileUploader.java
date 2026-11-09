@@ -24,7 +24,10 @@ package uk.ac.sussex.wear.android.datalogger.upload;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -306,11 +309,25 @@ public class FileUploader {
     }
 
 
+    // getActiveNetworkInfo() is deprecated in API 29, use NetworkCapabilities instead
+    private boolean isNetworkConnected(ConnectivityManager connMgr) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network network = connMgr.getActiveNetwork();
+            if (network == null) return false;
+            NetworkCapabilities capabilities = connMgr.getNetworkCapabilities(network);
+            return capabilities != null
+                    && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+        }
+        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+        return networkInfo != null && networkInfo.isConnected();
+    }
+
     public void startUpload() {
 
         ConnectivityManager connMgr = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-        if (networkInfo != null && networkInfo.isConnected()) {
+        if (isNetworkConnected(connMgr)) {
             createFilesList();
             if (mFilesToUpload.size() > 0) { //if there are log files not syncronized
                 uploadFilesList();

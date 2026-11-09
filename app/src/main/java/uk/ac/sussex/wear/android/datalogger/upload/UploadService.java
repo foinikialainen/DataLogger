@@ -23,10 +23,17 @@
 package uk.ac.sussex.wear.android.datalogger.upload;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
+
+import uk.ac.sussex.wear.android.datalogger.Constants;
+import uk.ac.sussex.wear.android.datalogger.R;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -199,6 +206,8 @@ public final class UploadService extends Service {
     public void onCreate() {
         super.onCreate();
 
+        createNotificationChannel();
+
         if (UPLOAD_POOL_SIZE <= 0) {
             UPLOAD_POOL_SIZE = Runtime.getRuntime().availableProcessors();
         }
@@ -210,6 +219,23 @@ public final class UploadService extends Service {
                 KEEP_ALIVE_TIME_IN_SECONDS,
                 TimeUnit.SECONDS,
                 uploadTasksQueue);
+    }
+
+    /**
+     * Creates the notification channel used by the upload notifications (required on API 26+)
+     */
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(Constants.UPLOAD_NOTIFICATION_CHANNEL_ID,
+                    getResources().getString(R.string.upload_notification_channel_name),
+                    NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription(getResources().getString(R.string.upload_notification_channel_description));
+            NotificationManager notificationManager =
+                    (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
     }
 
     @Override
@@ -264,7 +290,11 @@ public final class UploadService extends Service {
 
         if (EXECUTE_IN_FOREGROUND) {
             Log.d(TAG, "Stopping foreground execution");
-            stopForeground(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
         }
 
         uploadTasksMap.clear();
@@ -291,7 +321,8 @@ public final class UploadService extends Service {
             Class<?> task = Class.forName(taskClass);
 
             if (UploadTask.class.isAssignableFrom(task)) {
-                uploadTask = UploadTask.class.cast(task.newInstance());
+                // Class.newInstance() is deprecated, use the constructor reflection instead
+                uploadTask = UploadTask.class.cast(task.getDeclaredConstructor().newInstance());
                 uploadTask.init(this, intent);
             } else {
                 Log.e(TAG, taskClass + " does not extend UploadTask!");
@@ -320,7 +351,13 @@ public final class UploadService extends Service {
         }
 
         if (uploadId.equals(foregroundUploadId)) {
-            startForeground(UPLOAD_NOTIFICATION_BASE_ID, notification);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // API 29+: the foreground service type must be specified
+                startForeground(UPLOAD_NOTIFICATION_BASE_ID, notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(UPLOAD_NOTIFICATION_BASE_ID, notification);
+            }
             return true;
         }
 

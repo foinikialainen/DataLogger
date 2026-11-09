@@ -22,9 +22,9 @@
 
 package uk.ac.sussex.wear.android.datalogger.har;
 
-import android.app.IntentService;
 import android.content.Intent;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.core.app.JobIntentService;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
@@ -33,28 +33,21 @@ import java.util.ArrayList;
 
 import uk.ac.sussex.wear.android.datalogger.Constants;
 
-// class for intent service of google api service ?!
+// JobIntentService replaces the deprecated IntentService (API 30+)
 
-public class HARecognizerApiIntentService extends IntentService {
+public class HARecognizerApiIntentService extends JobIntentService {
 
     private static final String TAG = HARecognizerApiIntentService.class.getSimpleName();
 
     public HARecognizerApiIntentService() {
-        super(TAG);
-    }
-
-    /**
-     * Creates an IntentService.  Invoked by your subclass's constructor.
-     *
-     * @param name Used to name the worker thread, important only for debugging.
-     */
-    public HARecognizerApiIntentService(String name) {
-        super(name);
+        super();
     }
 
     @Override
-    protected void onHandleIntent(Intent intent) {
+    protected void onHandleWork(Intent intent) {
         ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
+
+        if (result == null) return;
 
         // Get the list of the probable activities associated with the current state of the
         // device. Each activity is associated with a confidence level, which is an int between

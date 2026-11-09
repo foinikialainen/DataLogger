@@ -30,6 +30,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RadioGroup;
 
+import androidx.core.content.ContextCompat;
+
 import uk.ac.sussex.wear.android.datalogger.data.CommandFLE;
 
 public class FlagEventActivity extends Activity implements View.OnClickListener {
@@ -67,7 +69,7 @@ public class FlagEventActivity extends Activity implements View.OnClickListener 
                 int radioButtonID = flagsRadioGroup.getCheckedRadioButtonId();
                 View radioButton = flagsRadioGroup.findViewById(radioButtonID);
                 int idx = flagsRadioGroup.indexOfChild(radioButton);
-                startService(new Intent(FlagEventActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(FlagEventActivity.this, new Intent(FlagEventActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                 new CommandFLE(this.getResources().getStringArray(R.array.flaggable_events)[idx], notes).getMessage()));
                 this.finish();

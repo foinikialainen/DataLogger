@@ -23,14 +23,18 @@
 package uk.ac.sussex.wear.android.datalogger.collector;
 
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.util.Date;
@@ -48,8 +52,13 @@ public class Depr_CellsInfoDataCollector extends AbstractDataCollector {
     // The telephony manager reference
     private TelephonyManager mTelephonyManager = null;
 
-    // Listener class for monitoring changes in telephony states
+    // Listener class for monitoring changes in telephony states (legacy, API < 31)
     private CellInfoListener mCellInfoListener = null;
+
+    // Callback for monitoring signal strengths (API 31+, replaces TelephonyManager.listen)
+    private TelephonyCallback mTelephonyCallback = null;
+
+    private Context mContext = null;
 
     // Timer to manage specific sampling rates
     private Handler mTimerHandler = null;
@@ -65,24 +74,39 @@ public class Depr_CellsInfoDataCollector extends AbstractDataCollector {
         //Object to provide access to information about the telephony services on the device
         mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
 
+        mContext = context;
+
         // Offset to match timestamps both in master and slaves devices
         mNanosOffset = nanosOffset;
 
-        mCellInfoListener = new CellInfoListener();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mTelephonyCallback = new ModernSignalStrengthCallback();
+        } else {
+            mCellInfoListener = new CellInfoListener();
+        }
     }
 
     @Override
     public void start() {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
         logger.start();
-        mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+        if (mTelephonyCallback != null) {
+            mTelephonyManager.registerTelephonyCallback(
+                    ContextCompat.getMainExecutor(mContext), mTelephonyCallback);
+        } else if (mCellInfoListener != null) {
+            mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+        }
 
     }
 
     @Override
     public void stop() {
         Log.i(TAG,"stop:: Stopping listener for sensor " + getSensorName());
-        mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_NONE);
+        if (mTelephonyCallback != null) {
+            mTelephonyManager.unregisterTelephonyCallback(mTelephonyCallback);
+        } else if (mCellInfoListener != null) {
+            mTelephonyManager.listen(mCellInfoListener, PhoneStateListener.LISTEN_NONE);
+        }
         logger.stop();
     }
 
@@ -225,6 +249,20 @@ public class Depr_CellsInfoDataCollector extends AbstractDataCollector {
      * A listener class for monitoring changes in specific telephony states on the device,
      * including service state, signal strength, message waiting indicator (voicemail), and others.
      */
+    /**
+     * Callback used on API 31+ to monitor signal strength changes
+     * (replaces the deprecated TelephonyManager.listen / PhoneStateListener).
+     */
+    private class ModernSignalStrengthCallback extends TelephonyCallback
+            implements TelephonyCallback.SignalStrengthsListener {
+
+        @Override
+        public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+            logCellInfo(getCellInfoString(signalStrength));
+        }
+
+    }
+
     private class CellInfoListener extends PhoneStateListener {
 
         @Override

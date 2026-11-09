@@ -22,20 +22,30 @@
 
 package uk.ac.sussex.wear.android.datalogger;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.design.widget.Snackbar;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.google.android.material.snackbar.Snackbar;
 import android.text.InputType;
 import android.util.Log;
 import android.view.Menu;
@@ -54,6 +64,7 @@ import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+
 
 import uk.ac.sussex.wear.android.datalogger.bt.BluetoothDeviceListActivity;
 import uk.ac.sussex.wear.android.datalogger.data.CommandBTC;
@@ -180,9 +191,85 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         /******************************************************************************************/
 
         DataLoggerService.setStatusDelegate(this);
-        startService(new Intent(this, DataLoggerService.class)
+        ContextCompat.startForegroundService(this, new Intent(this, DataLoggerService.class)
                 .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTS().getMessage()));
 
+        checkAndRequestPermissions();
+
+    }
+
+    private static final int REQUEST_CODE_PERMISSIONS = 100;
+    private static final int REQUEST_CODE_BACKGROUND_LOCATION = 101;
+
+    /**
+     * Requests at runtime all the dangerous permissions needed by the app on Android 6+
+     * (and the additional ones required on Android 10/12/13/14).
+     */
+    private void checkAndRequestPermissions() {
+        List<String> permissions = new ArrayList<>();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECORD_AUDIO);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.BLUETOOTH_SCAN);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.NEARBY_WIFI_DEVICES)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(this, "com.google.android.gms.permission.ACTIVITY_RECOGNITION")
+                != PackageManager.PERMISSION_GRANTED) {
+            permissions.add("com.google.android.gms.permission.ACTIVITY_RECOGNITION");
+        }
+        if (!permissions.isEmpty()) {
+            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), REQUEST_CODE_PERMISSIONS);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            // On Android 10+ the background location permission must be requested separately
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                        REQUEST_CODE_BACKGROUND_LOCATION);
+            }
+        } else if (requestCode == REQUEST_CODE_BACKGROUND_LOCATION) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Background location is required to log location while the screen is off",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
 
@@ -195,7 +282,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         // If the state of the data collector when the activity starts was "collecting data"
         // a message is sent to the service to be sure the state is correct
         if (SharedPreferencesHelper.getDataCollectionState(this)) {
-            startService(new Intent(this, DataLoggerService.class)
+            ContextCompat.startForegroundService(new Intent(this, DataLoggerService.class)
                     .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                             new CommandDCE(true).getMessage()));
             mDataCollectionButton.setEnabled(true);
@@ -209,7 +296,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         }
 
         if (SharedPreferencesHelper.getLabelsAnnotationState(this)) {
-            startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+            ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                     .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                             new CommandLAE(true,
                                     SharedPreferencesHelper.getAnnotatedActivityLabel(this),
@@ -413,7 +500,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
 
                 SharedPreferencesHelper.setLabelsAnnotationStartingTime(DisplayActivity.this, 0);
                 mLabelsChronometer.stop();
-                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                 new CommandLAE(false)
                                         .setStopAndStartEvent(
@@ -554,7 +641,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
             case REQUEST_CONNECT_DEVICE:
                 if (resultCode == RESULT_OK) {
                     String address = data.getExtras().getString(Constants.BLUETOOTH_DEVICE_ADDRESS_INTENT_KEY);
-                    startService(new Intent(this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(new Intent(this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTC(address).getMessage()));
                 }
                 break;
@@ -626,7 +713,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                         .setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUS().getMessage()));
                                 menu.findItem(R.id.action_cancel_upload).setVisible(true);
                                 menu.findItem(R.id.action_upload).setVisible(false);
@@ -643,7 +730,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                         .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUC().getMessage()));
                                 menu.findItem(R.id.action_upload).setVisible(true);
                                 menu.findItem(R.id.action_cancel_upload).setVisible(false);
@@ -681,7 +768,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
 
             if (key.equals(getResources().getString(R.string.pref_general_key_device_location))) {
-                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTS().getMessage()));
             }
 
@@ -705,10 +792,10 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         public boolean onLongClick(View v) {
 
             if (!SharedPreferencesHelper.getUploadServiceState(DisplayActivity.this)) {
-                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUS().getMessage()));
             } else {
-                startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUC().getMessage()));
             }
             return true;
@@ -793,7 +880,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         switch (id) {
             case R.id.ui_data_collection_button:
                 if (!SharedPreferencesHelper.getDataCollectionState(DisplayActivity.this)) {
-                    startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandDCE(true).getMessage()));
                     setChecked(mDataCollectionButton, true);
@@ -802,7 +889,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                     updateTextviewSwitch(true, R.id.ui_data_collection_custom_text);
                     mLabelAnnotationButton.setEnabled(true);
                 } else {
-                    startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandDCE(false).getMessage()));
                     setChecked(mDataCollectionButton, false);
@@ -814,7 +901,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                 break;
             case R.id.ui_label_annotation_button:
                 if (!SharedPreferencesHelper.getLabelsAnnotationState(DisplayActivity.this)) {
-                    startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandLAE(true,
                                             SharedPreferencesHelper.getSelectedActivityLabel(DisplayActivity.this),
@@ -836,7 +923,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
 
                     SharedPreferencesHelper.setLabelsAnnotationStartingTime(DisplayActivity.this, 0);
                     mLabelsChronometer.stop();
-                    startService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandLAE(false).getMessage()
                             )

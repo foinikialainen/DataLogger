@@ -24,9 +24,7 @@ package uk.ac.sussex.wear.android.datalogger.collector;
 
 // abstract parent class for various data collectors
 
-import android.app.Activity;
-
-public abstract class AbstractDataCollector extends Activity {
+public abstract class AbstractDataCollector {
 
     protected long mNanosOffset = 0;
     protected String mSensorName;

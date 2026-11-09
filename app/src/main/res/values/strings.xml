@@ -383,6 +383,9 @@
     <!--<string name="walking">Walking</string>-->
     <!--<string name="unidentifiable_activity">Unidentifiable activity: %1$d</string>-->
 
-
+    <string name="notification_channel_name">DataLogger service</string>
+    <string name="notification_channel_description">Persistent notification shown while the app is logging data</string>
+    <string name="upload_notification_channel_name">File upload</string>
+    <string name="upload_notification_channel_description">Progress of the log files upload</string>
 
 </resources>
