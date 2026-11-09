@@ -22,9 +22,13 @@
 
 package uk.ac.sussex.wear.android.datalogger.collector;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.io.IOException;
@@ -88,9 +92,18 @@ public class AudioDataCollector extends AbstractDataCollector {
 
     @Override
     public void start() {
+        if (ContextCompat.checkSelfPermission(mContext, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "start:: RECORD_AUDIO permission not granted, audio collector not started");
+            return;
+        }
         prepare(mSamplingRate);
         Log.i(TAG, "start:: Starting listener for sensor: "+getSensorName());
-        mRecorder.start();
+        try {
+            mRecorder.start();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "start:: Error starting MediaRecorder: " + e.getMessage());
+        }
     }
 
     @Override

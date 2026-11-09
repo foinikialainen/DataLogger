@@ -164,7 +164,11 @@ public class WiFiDataCollector extends AbstractDataCollector {
         Log.i(TAG,"stop:: Stopping listener for sensor " + getSensorName());
 
         if (mWiFiInfoReceiver != null) {
-            mContext.unregisterReceiver(mWiFiInfoReceiver);
+            try {
+                mContext.unregisterReceiver(mWiFiInfoReceiver);
+            } catch (IllegalArgumentException e) {
+                Log.w(TAG, "WiFi receiver was not registered");
+            }
         } else {
             mTimerHandler.removeCallbacks(mTimerRunnable);
         }

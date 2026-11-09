@@ -318,14 +318,15 @@ public class DataCollectors {
             }
         }
 
-        // All data collectors are started
-        try{
-            for (AbstractDataCollector collector : mCollectors) {
+        // All data collectors are started; each one is guarded so a single failing
+        // collector (e.g. missing sensor or missing permission) does not abort the others
+        for (AbstractDataCollector collector : mCollectors) {
+            try {
                 Log.i(TAG, "Calling collector " + collector.getSensorName());
                 collector.start();
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting data collector " + collector.getSensorName() + ": " + e.getMessage());
             }
-        } catch (Exception e){
-            Log.e(TAG, "Error starting data collector: " + e.getMessage());
         }
     }
 

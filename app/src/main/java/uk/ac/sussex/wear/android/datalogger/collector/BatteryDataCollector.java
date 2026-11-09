@@ -104,7 +104,11 @@ public class BatteryDataCollector extends AbstractDataCollector {
     @Override
     public void stop() {
         Log.i(TAG,"stop:: Stopping listener for sensor " + getSensorName());
-        mContext.unregisterReceiver(mBatteryInfoReceiver);
+        try {
+            mContext.unregisterReceiver(mBatteryInfoReceiver);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "Battery receiver was not registered");
+        }
         logger.stop();
     }
 
