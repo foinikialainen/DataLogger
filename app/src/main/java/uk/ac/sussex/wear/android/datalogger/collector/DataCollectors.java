@@ -99,7 +99,7 @@ public class DataCollectors {
 
         // Calls DummyDataCollector
             try{
-                Log.e(TAG, "Error creating " + "DummyDataCollector" + " test_datacoll");
+                Log.d(TAG, "Adding DummyDataCollector test_datacoll");
                 mCollectors.add(new DummyDataCollector(context, sessionName,
                         "Dummy", 1,
                         nanosOffset,

@@ -277,6 +277,9 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
     protected void onStart() {
         super.onStart();
 
+        // Re-ask for any missing runtime permissions on every start (until permanently denied)
+        checkAndRequestPermissions();
+
         mDeviceLocation = SharedPreferencesHelper.getDeviceLocationValue(this);
 
         // If the state of the data collector when the activity starts was "collecting data"
