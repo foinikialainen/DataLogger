@@ -361,7 +361,7 @@ public class DataLoggerService extends Service {
 
         Log.d(TAG, "Calling startForeground");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int foregroundServiceType = getForegroundServiceType();
+            int foregroundServiceType = computeForegroundServiceType();
             if (foregroundServiceType != 0) {
                 startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification, foregroundServiceType);
             } else {
@@ -428,7 +428,7 @@ public class DataLoggerService extends Service {
      * Computes the foreground service type bitmask from the permissions granted at runtime
      * (required on API 29+ when the manifest declares foregroundServiceType)
      */
-    private int getForegroundServiceType() {
+    private int computeForegroundServiceType() {
         int type = 0;
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {

@@ -125,24 +125,18 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
     @Override
     public void start() {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // API 30+: requestLocationUpdates(String, long, float, LocationListener) is deprecated,
-            // use the LocationRequest-based variant instead
-            LocationRequest locationRequest;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                locationRequest = new LocationRequest.Builder(500, 500)
-                        .setMinUpdateDistanceMeters(0)
-                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                        .build();
-            } else {
-                locationRequest = LocationRequest.create()
-                        .setInterval(500)
-                        .setFastestInterval(500)
-                        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // API 31+: use the LocationRequest.Builder variant
+            // (LocationRequest.create() and the PRIORITY_* constants were removed from newer SDK stubs)
+            LocationRequest locationRequest = new LocationRequest.Builder(500)
+                    .setMinUpdateIntervalMillis(500)
+                    .setMinUpdateDistanceMeters(0)
+                    .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
+                    .build();
             mLocationManager.requestLocationUpdates(locationRequest,
                     ContextCompat.getMainExecutor(mContext), this);
         } else {
+            // API < 31: legacy string-based variant
             mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
         }
         logger.start();

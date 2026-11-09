@@ -24,7 +24,7 @@
 package uk.ac.sussex.wear.android.datalogger.collector;
 
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothLeScanner;
+import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;

@@ -282,7 +282,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         // If the state of the data collector when the activity starts was "collecting data"
         // a message is sent to the service to be sure the state is correct
         if (SharedPreferencesHelper.getDataCollectionState(this)) {
-            ContextCompat.startForegroundService(new Intent(this, DataLoggerService.class)
+            ContextCompat.startForegroundService(this, new Intent(this, DataLoggerService.class)
                     .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                             new CommandDCE(true).getMessage()));
             mDataCollectionButton.setEnabled(true);
@@ -296,7 +296,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         }
 
         if (SharedPreferencesHelper.getLabelsAnnotationState(this)) {
-            ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+            ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                     .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                             new CommandLAE(true,
                                     SharedPreferencesHelper.getAnnotatedActivityLabel(this),
@@ -500,7 +500,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
 
                 SharedPreferencesHelper.setLabelsAnnotationStartingTime(DisplayActivity.this, 0);
                 mLabelsChronometer.stop();
-                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                 new CommandLAE(false)
                                         .setStopAndStartEvent(
@@ -641,7 +641,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
             case REQUEST_CONNECT_DEVICE:
                 if (resultCode == RESULT_OK) {
                     String address = data.getExtras().getString(Constants.BLUETOOTH_DEVICE_ADDRESS_INTENT_KEY);
-                    ContextCompat.startForegroundService(new Intent(this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(this, new Intent(this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTC(address).getMessage()));
                 }
                 break;
@@ -713,7 +713,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                         .setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUS().getMessage()));
                                 menu.findItem(R.id.action_cancel_upload).setVisible(true);
                                 menu.findItem(R.id.action_upload).setVisible(false);
@@ -730,7 +730,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                         .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUC().getMessage()));
                                 menu.findItem(R.id.action_upload).setVisible(true);
                                 menu.findItem(R.id.action_cancel_upload).setVisible(false);
@@ -768,7 +768,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
 
             if (key.equals(getResources().getString(R.string.pref_general_key_device_location))) {
-                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandBTS().getMessage()));
             }
 
@@ -792,10 +792,10 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         public boolean onLongClick(View v) {
 
             if (!SharedPreferencesHelper.getUploadServiceState(DisplayActivity.this)) {
-                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUS().getMessage()));
             } else {
-                ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                         .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY, new CommandFUC().getMessage()));
             }
             return true;
@@ -880,7 +880,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         switch (id) {
             case R.id.ui_data_collection_button:
                 if (!SharedPreferencesHelper.getDataCollectionState(DisplayActivity.this)) {
-                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandDCE(true).getMessage()));
                     setChecked(mDataCollectionButton, true);
@@ -889,7 +889,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                     updateTextviewSwitch(true, R.id.ui_data_collection_custom_text);
                     mLabelAnnotationButton.setEnabled(true);
                 } else {
-                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandDCE(false).getMessage()));
                     setChecked(mDataCollectionButton, false);
@@ -901,7 +901,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
                 break;
             case R.id.ui_label_annotation_button:
                 if (!SharedPreferencesHelper.getLabelsAnnotationState(DisplayActivity.this)) {
-                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandLAE(true,
                                             SharedPreferencesHelper.getSelectedActivityLabel(DisplayActivity.this),
@@ -923,7 +923,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
 
                     SharedPreferencesHelper.setLabelsAnnotationStartingTime(DisplayActivity.this, 0);
                     mLabelsChronometer.stop();
-                    ContextCompat.startForegroundService(new Intent(DisplayActivity.this, DataLoggerService.class)
+                    ContextCompat.startForegroundService(this, new Intent(DisplayActivity.this, DataLoggerService.class)
                             .putExtra(Constants.COMMAND_SERVICE_INTENT_KEY,
                                     new CommandLAE(false).getMessage()
                             )
