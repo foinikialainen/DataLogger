@@ -26,17 +26,11 @@ import android.content.Context;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.location.LocationRequest;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
 import java.io.File;
 import java.util.Date;
-import java.util.concurrent.Executor;
-
-import androidx.core.content.ContextCompat;
-import androidx.core.location.LocationManagerCompat;
 
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
 
@@ -127,20 +121,10 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
     @Override
     public void start() {
         Log.i(TAG, "start:: Starting listener for sensor: " + getSensorName());
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // API 31+: use the LocationRequest.Builder variant
-            // (LocationRequest.create() and the PRIORITY_* constants were removed from newer SDK stubs)
-            LocationRequest locationRequest = new LocationRequest.Builder(500)
-                    .setMinUpdateIntervalMillis(500)
-                    .setMinUpdateDistanceMeters(0)
-                    .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
-                    .build();
-            Executor executor = ContextCompat.getMainExecutor(mContext);
-            LocationManagerCompat.requestLocationUpdates(mLocationManager, locationRequest, executor, this);
-        } else {
-            // API < 31: legacy string-based variant
-            mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
-        }
+        // Note: the LocationRequest-based requestLocationUpdates(LocationRequest, Executor, LocationListener)
+        // is the modern API on Android 10+, but the provider-based variant below is still fully supported
+        // on Android 14 and keeps a single code path for all supported devices.
+        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
         logger.start();
     }
 
