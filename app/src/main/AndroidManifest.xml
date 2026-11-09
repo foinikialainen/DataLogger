@@ -111,7 +111,7 @@
 
         <service android:name=".DataLoggerService"
             android:exported="false"
-            android:foregroundServiceType="location|microphone|connectedDevice" />
+            android:foregroundServiceType="location|microphone|connectedDevice|dataSync" />
 
         <service android:name=".upload.UploadService"
             android:exported="false"

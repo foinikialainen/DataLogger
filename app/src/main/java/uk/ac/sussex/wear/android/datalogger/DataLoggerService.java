@@ -361,12 +361,10 @@ public class DataLoggerService extends Service {
 
         Log.d(TAG, "Calling startForeground");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int foregroundServiceType = computeForegroundServiceType();
-            if (foregroundServiceType != 0) {
-                startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification, foregroundServiceType);
-            } else {
-                startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
-            }
+            // Always pass an explicit type: on Android 14 the 2-arg startForeground() would fall
+            // back to the manifest types (incl. microphone), which crashes with SecurityException
+            // when the related runtime permission has not been granted yet
+            startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification, computeForegroundServiceType());
         } else {
             startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, mNotification);
         }
@@ -446,6 +444,12 @@ public class DataLoggerService extends Service {
         } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH)
                 == PackageManager.PERMISSION_GRANTED) {
             type |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
+        }
+        if (type == 0) {
+            // No runtime-gated type applies (e.g. first launch before permissions are granted):
+            // dataSync only needs the install-time FOREGROUND_SERVICE_DATA_SYNC permission, so it is
+            // always safe to use as a fallback
+            type = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
         }
         return type;
     }
