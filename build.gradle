@@ -3,6 +3,8 @@
 buildscript {
     repositories {
         google()
+        // Google-hosted mirror of Maven Central: repo.maven.apache.org rate-limits (429) CI runners
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
         mavenCentral()
     }
     dependencies {
@@ -16,6 +18,7 @@ buildscript {
 allprojects {
     repositories {
         google()
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
         mavenCentral()
     }
 }
