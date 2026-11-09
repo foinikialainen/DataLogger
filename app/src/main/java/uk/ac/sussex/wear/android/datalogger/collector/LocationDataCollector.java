@@ -36,6 +36,7 @@ import java.util.Date;
 import java.util.concurrent.Executor;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.location.LocationManagerCompat;
 
 import uk.ac.sussex.wear.android.datalogger.log.CustomLogger;
 
@@ -135,7 +136,7 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
                     .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
                     .build();
             Executor executor = ContextCompat.getMainExecutor(mContext);
-            mLocationManager.requestLocationUpdates(locationRequest, executor, this);
+            LocationManagerCompat.requestLocationUpdates(mLocationManager, locationRequest, executor, this);
         } else {
             // API < 31: legacy string-based variant
             mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
