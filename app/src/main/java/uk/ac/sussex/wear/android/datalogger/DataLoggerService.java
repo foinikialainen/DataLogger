@@ -201,7 +201,7 @@ public class DataLoggerService extends Service {
                                     int[] bitmasks = new int[]{0x4, 0x2, 0x1};
                                     int value = SharedPreferencesHelper.getSlavesConnected(DataLoggerService.this);
                                     boolean isConnected = ((value & bitmasks[indexSocketLost]) == bitmasks[indexSocketLost]);
-                                    if (!isConnected)
+                                    if (!isConnected) {
                                         // vibration for 800 milliseconds
                                         Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
                                         if (vibrator != null) {
@@ -211,6 +211,7 @@ public class DataLoggerService extends Service {
                                                 vibrator.vibrate(800);
                                             }
                                         }
+                                    }
                                 }
                             }, 7000);
                         }
