@@ -80,6 +80,12 @@ public final class SharedPreferencesHelper {
         }
     }
 
+    public static String getDownloadsSubfolder(Context context){
+        return getSharedPrefsInstance(context)
+                .getString(context.getResources().getString(R.string.pref_general_key_downloads_subfolder),
+                        context.getResources().getString(R.string.pref_general_default_downloads_subfolder));
+    }
+
     public static boolean isEnabledHARAPI(Context context){
         return getSharedPrefsInstance(context)
                 .getBoolean(context.getResources().getString(R.string.pref_general_key_enabled_HAR_API), true);

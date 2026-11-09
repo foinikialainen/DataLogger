@@ -193,6 +193,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
             bindPreferenceSummaryToValue(findPreference(getResources().getString(R.string.pref_general_key_HAR_API_detection_interval)));
             bindPreferenceSummaryToValue(findPreference(getResources().getString(R.string.pref_general_key_log_files_maxSize)));
             bindPreferenceSummaryToValue(findPreference(getResources().getString(R.string.pref_general_key_log_maxTime)));
+            bindPreferenceSummaryToValue(findPreference(getResources().getString(R.string.pref_general_key_downloads_subfolder)));
         }
 
     }

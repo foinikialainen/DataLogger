@@ -77,6 +77,16 @@
             android:maxLines="1"
             android:maxLength="5"
             android:title="@string/pref_general_title_log_maxTime" />
+
+        <EditTextPreference
+            android:defaultValue="@string/pref_general_default_downloads_subfolder"
+            android:hint="e.g. experiment1"
+            android:inputType="text"
+            android:singleLine="true"
+            android:key="@string/pref_general_key_downloads_subfolder"
+            android:maxLines="1"
+            android:maxLength="50"
+            android:title="@string/pref_general_title_downloads_subfolder" />
     </PreferenceCategory>
 
 </PreferenceScreen>

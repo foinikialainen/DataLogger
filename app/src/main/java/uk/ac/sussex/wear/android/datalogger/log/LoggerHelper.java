@@ -37,6 +37,8 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import uk.ac.sussex.wear.android.datalogger.SharedPreferencesHelper;
+
 /**
  * Created by fjordonez on 13/10/16.
  */
@@ -101,7 +103,7 @@ public final class LoggerHelper {
             ContentResolver resolver = context.getContentResolver();
             ContentValues values = new ContentValues();
             values.put(MediaStore.Downloads.DISPLAY_NAME, source.getName());
-            values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/DataLogger");
+            values.put(MediaStore.Downloads.RELATIVE_PATH, downloadsRelativePath(context));
             values.put(MediaStore.Downloads.MIME_TYPE, mimeTypeFor(source.getName()));
             values.put(MediaStore.Downloads.IS_PENDING, 1);
             Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
@@ -126,6 +128,19 @@ public final class LoggerHelper {
         } catch (Exception e) {
             Log.w(TAG, "copyToDownloads: failed for " + source.getName() + ": " + e.getMessage());
         }
+    }
+
+
+    /**
+     * Builds the MediaStore relative path for the Downloads copy: Downloads/DataLogger[/<subfolder>].
+     * The subfolder comes from the settings and is sanitized (no path separators, so it cannot
+     * escape the DataLogger folder). Empty subfolder means files go directly into Downloads/DataLogger.
+     */
+    private static String downloadsRelativePath(Context context) {
+        String subfolder = SharedPreferencesHelper.getDownloadsSubfolder(context)
+                .replaceAll("[/\\\\]", "").trim();
+        String base = Environment.DIRECTORY_DOWNLOADS + "/DataLogger";
+        return subfolder.isEmpty() ? base : base + "/" + subfolder;
     }
 
     private static String mimeTypeFor(String filename) {
