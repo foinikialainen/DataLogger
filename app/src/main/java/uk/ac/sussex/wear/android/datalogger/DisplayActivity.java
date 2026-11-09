@@ -28,11 +28,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.content.res.TypedArray;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -196,6 +198,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
 
     private static final int REQUEST_CODE_PERMISSIONS = 100;
     private boolean mRequestingPermissions = false;
+    private boolean mSettingsSnackbarShown = false;
 
     private boolean isPermissionMissing(String permission) {
         return ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED;
@@ -259,6 +262,18 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
             mRequestingPermissions = false;
             // chain to the next missing permission group so each one gets its own dialog
             requestNextMissingPermissionGroup();
+            // if permissions are still missing (e.g. previously denied with "Don't ask again",
+            // in which case Android never shows the dialog again), point the user to app settings
+            if (!mSettingsSnackbarShown && nextMissingPermissionGroup() != null) {
+                mSettingsSnackbarShown = true;
+                Snackbar.make(mCoordinatorLayoutView,
+                                "Some permissions are missing - grant them in the app settings",
+                                Snackbar.LENGTH_INDEFINITE)
+                        .setAction("Settings", v -> startActivity(new Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + getPackageName()))))
+                        .show();
+            }
         }
     }
 
@@ -267,6 +282,7 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
         super.onStart();
 
         // Re-ask for any missing runtime permissions on every start (until permanently denied)
+        mSettingsSnackbarShown = false;
         checkAndRequestPermissions();
 
         mDeviceLocation = SharedPreferencesHelper.getDeviceLocationValue(this);
