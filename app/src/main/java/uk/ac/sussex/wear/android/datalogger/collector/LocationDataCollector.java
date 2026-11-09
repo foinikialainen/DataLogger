@@ -33,6 +33,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.util.Date;
+import java.util.concurrent.Executor;
 
 import androidx.core.content.ContextCompat;
 
@@ -133,8 +134,8 @@ public class LocationDataCollector extends AbstractDataCollector implements Loca
                     .setMinUpdateDistanceMeters(0)
                     .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
                     .build();
-            mLocationManager.requestLocationUpdates(locationRequest,
-                    ContextCompat.getMainExecutor(mContext), this);
+            Executor executor = ContextCompat.getMainExecutor(mContext);
+            mLocationManager.requestLocationUpdates(locationRequest, executor, this);
         } else {
             // API < 31: legacy string-based variant
             mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
