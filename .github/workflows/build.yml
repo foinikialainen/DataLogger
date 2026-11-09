@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [vibe/android14-modernization-dd1e4b]
+    branches: [master, vibe/android14-modernization-dd1e4b]
   pull_request:
     branches: [master]
 
