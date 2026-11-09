@@ -22,10 +22,20 @@
 
 package uk.ac.sussex.wear.android.datalogger.log;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.os.SystemClock;
+import android.provider.MediaStore;
+import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Created by fjordonez on 13/10/16.
@@ -76,6 +86,52 @@ public final class LoggerHelper {
         }
 
         return new File(absoluteDir.getAbsolutePath() + File.separator + baseFilename);
+    }
+
+    /**
+     * Copies a finished log file into the shared Downloads folder (Downloads/DataLogger) via
+     * MediaStore, so the user can see and share the files with a regular file manager.
+     * On Android 10+ (API 29+) apps can create their own files in Downloads without any
+     * storage permission. On older versions this is a no-op (files stay in the app-specific dir).
+     */
+    public static void copyToDownloads(Context context, File source) {
+        if (source == null || !source.exists()) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return;
+        try {
+            ContentResolver resolver = context.getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, source.getName());
+            values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/DataLogger");
+            values.put(MediaStore.Downloads.MIME_TYPE, mimeTypeFor(source.getName()));
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) {
+                Log.w(TAG, "copyToDownloads: could not create Downloads entry for " + source.getName());
+                return;
+            }
+            try (OutputStream out = resolver.openOutputStream(uri);
+                 InputStream in = new FileInputStream(source)) {
+                if (out != null && in != null) {
+                    byte[] buffer = new byte[8192];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, n);
+                    }
+                }
+            }
+            values.clear();
+            values.put(MediaStore.Downloads.IS_PENDING, 0);
+            resolver.update(uri, values, null, null);
+            Log.i(TAG, "copyToDownloads: copied " + source.getName() + " to Downloads/DataLogger");
+        } catch (Exception e) {
+            Log.w(TAG, "copyToDownloads: failed for " + source.getName() + ": " + e.getMessage());
+        }
+    }
+
+    private static String mimeTypeFor(String filename) {
+        if (filename.endsWith(".txt")) return "text/plain";
+        if (filename.endsWith(".3gp")) return "audio/3gpp";
+        return "application/octet-stream";
     }
 
 }

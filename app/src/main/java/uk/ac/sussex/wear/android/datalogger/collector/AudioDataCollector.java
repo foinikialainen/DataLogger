@@ -119,6 +119,8 @@ public class AudioDataCollector extends AbstractDataCollector {
             mRecorder.release();
             mRecorder = null;
             DataLoggerDataSource.insertLogFile(mContext, logFile.getAbsolutePath(), getSensorName(), mSessionName);
+            // also expose the finished audio file in the shared Downloads folder (Android 10+)
+            LoggerHelper.copyToDownloads(mContext, logFile);
         }
     }
 

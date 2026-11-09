@@ -113,6 +113,8 @@ public class CustomLogger {
                 }
                 mOutputStream.flush();
                 mOutputStream.close();
+                // also expose the finished log in the shared Downloads folder (Android 10+)
+                LoggerHelper.copyToDownloads(mContext, logFile);
                 logFile = null;
             } catch (IOException e) {
                 Log.e(TAG, "::stop Error closing log file " + getBaseFilename());
