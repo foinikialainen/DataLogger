@@ -227,8 +227,8 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
             return new String[]{Manifest.permission.RECORD_AUDIO};
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && isPermissionMissing("com.google.android.gms.permission.ACTIVITY_RECOGNITION")) {
-            return new String[]{"com.google.android.gms.permission.ACTIVITY_RECOGNITION"};
+                && isPermissionMissing(Manifest.permission.ACTIVITY_RECOGNITION)) {
+            return new String[]{Manifest.permission.ACTIVITY_RECOGNITION};
         }
         if (isPermissionMissing(Manifest.permission.ACCESS_FINE_LOCATION)
                 || isPermissionMissing(Manifest.permission.ACCESS_COARSE_LOCATION)) {
