@@ -33,10 +33,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
-import android.widget.Toast;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -199,79 +195,72 @@ public class DisplayActivity extends AppCompatActivity implements DataLoggerStat
     }
 
     private static final int REQUEST_CODE_PERMISSIONS = 100;
-    private static final int REQUEST_CODE_BACKGROUND_LOCATION = 101;
+    private boolean mRequestingPermissions = false;
+
+    private boolean isPermissionMissing(String permission) {
+        return ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED;
+    }
 
     /**
-     * Requests at runtime all the dangerous permissions needed by the app on Android 6+
-     * (and the additional ones required on Android 10/12/13/14).
+     * Requests missing runtime permissions one group at a time. Android allows only one
+     * pending requestPermissions() call ("Can request only one set of permissions at a time")
+     * and shows a single dialog per call, so the groups are chained via onRequestPermissionsResult().
      */
     private void checkAndRequestPermissions() {
-        List<String> permissions = new ArrayList<>();
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.RECORD_AUDIO);
+        if (!mRequestingPermissions) {
+            requestNextMissingPermissionGroup();
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-        }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-                    != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.BLUETOOTH_SCAN);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                    != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
-            }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.NEARBY_WIFI_DEVICES)
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES);
+    }
+
+    private void requestNextMissingPermissionGroup() {
+        String[] group = nextMissingPermissionGroup();
+        if (group == null) return;
+        mRequestingPermissions = true;
+        ActivityCompat.requestPermissions(this, group, REQUEST_CODE_PERMISSIONS);
+    }
+
+    private String[] nextMissingPermissionGroup() {
+        if (isPermissionMissing(Manifest.permission.RECORD_AUDIO)) {
+            return new String[]{Manifest.permission.RECORD_AUDIO};
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && ContextCompat.checkSelfPermission(this, "com.google.android.gms.permission.ACTIVITY_RECOGNITION")
-                != PackageManager.PERMISSION_GRANTED) {
-            permissions.add("com.google.android.gms.permission.ACTIVITY_RECOGNITION");
+                && isPermissionMissing("com.google.android.gms.permission.ACTIVITY_RECOGNITION")) {
+            return new String[]{"com.google.android.gms.permission.ACTIVITY_RECOGNITION"};
         }
-        if (!permissions.isEmpty()) {
-            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), REQUEST_CODE_PERMISSIONS);
+        if (isPermissionMissing(Manifest.permission.ACCESS_FINE_LOCATION)
+                || isPermissionMissing(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            return new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
         }
+        // On Android 10+ the background location permission must be requested in a separate dialog
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && isPermissionMissing(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+            return new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION};
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && isPermissionMissing(Manifest.permission.POST_NOTIFICATIONS)) {
+            return new String[]{Manifest.permission.POST_NOTIFICATIONS};
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && (isPermissionMissing(Manifest.permission.BLUETOOTH_SCAN)
+                    || isPermissionMissing(Manifest.permission.BLUETOOTH_CONNECT))) {
+            return new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT};
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && isPermissionMissing(Manifest.permission.NEARBY_WIFI_DEVICES)) {
+            return new String[]{Manifest.permission.NEARBY_WIFI_DEVICES};
+        }
+        return null;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            // On Android 10+ the background location permission must be requested separately
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                    == PackageManager.PERMISSION_GRANTED
-                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
-                        REQUEST_CODE_BACKGROUND_LOCATION);
-            }
-        } else if (requestCode == REQUEST_CODE_BACKGROUND_LOCATION) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                    != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Background location is required to log location while the screen is off",
-                        Toast.LENGTH_LONG).show();
-            }
+            mRequestingPermissions = false;
+            // chain to the next missing permission group so each one gets its own dialog
+            requestNextMissingPermissionGroup();
         }
     }
-
 
     @Override
     protected void onStart() {
